@@ -1303,8 +1303,12 @@ HAL_StatusTypeDef HAL_UART_Transmit_IT(UART_HandleTypeDef *huart, const uint8_t 
   * @param Size  Amount of data elements (u8 or u16) to be received.
   * @retval HAL status
   */
+
+ void HAL_UART_IDLE_Callback (UART_HandleTypeDef *huart);
+
 HAL_StatusTypeDef HAL_UART_Receive_IT(UART_HandleTypeDef *huart, uint8_t *pData, uint16_t Size)
 {
+  //print_string("In receive");
   /* Check that a Rx process is not already ongoing */
   if (huart->RxState == HAL_UART_STATE_READY)
   {
@@ -2420,6 +2424,13 @@ void HAL_UART_IRQHandler(UART_HandleTypeDef *huart)
   {
     UART_EndTransmit_IT(huart);
     return;
+  }
+
+  /* UART RX IDLE interrupt --------------------------------------------*/
+  if(((isrflags & USART_ISR_IDLE) != RESET) && ((cr1its & USART_CR1_IDLEIE) != RESET))
+  {
+      HAL_UART_IDLE_Callback(huart);
+      return;
   }
 
 }

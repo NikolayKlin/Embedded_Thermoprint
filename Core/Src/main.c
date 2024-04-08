@@ -30,6 +30,7 @@
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
 
+
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -40,6 +41,15 @@
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
 #define HAL_UART_Transmit_DMA_STATIC(first, static_arr) do { HAL_UART_Transmit_DMA((first), static_arr, sizeof(static_arr)); } while(0)
+
+#define M_USART6_CR1 (volatile uint32_t*)(uintptr_t) (USART6_BASE + 0x00) // Control register 1
+#define M_USART6_CR2 (volatile uint32_t*)(uintptr_t) (USART6_BASE + 0x04) // Control register 2
+#define M_USART6_BRR (volatile uint32_t*)(uintptr_t) (USART6_BASE + 0x0C) // Baud rate register
+#define M_USART6_ISR (volatile uint32_t*)(uintptr_t) (USART6_BASE + 0x1C) // Interrupt and status register
+#define M_USART6_TDR (volatile uint32_t*)(uintptr_t) (USART6_BASE + 0x28) // Transmit data register
+
+#define UART_BAUDRATE 115200
+#define FREQUENCY 25000000
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -157,7 +167,7 @@ void HAL_UART_IDLE_Callback (UART_HandleTypeDef *huart);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-oid uart_send_byte(char sym)
+void uart_send_byte(char sym)
 {
     // Wait for TXE:
     while ((*M_USART6_ISR & (1U <<  7U)) == 0U);
@@ -172,16 +182,21 @@ void print_string(const char* buf)
     {
         uart_send_byte(buf[i]);
     }
-    uart_send_byte('\n');
-    uart_send_byte('\r');
+    //uart_send_byte('\n');
+    //uart_send_byte('\r');
+}
+
+void seek_string_end(char* buf)
+{
+  size_t i;
+  for (size_t i = 0; buf[i] != '\0'; i++){}
+      
+  buf[i+1] = '\n';
 }
 
 #define BUFSIZE 100 // здесь указать размер буфера нужного размера
 uint8_t buffer[BUFSIZE] = {0,};
 
-// Функция обробатывает IDLE флаг.  Для того чтобы эта функци работала , нужно  добавить  изменения в
-// Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_uart.h
-// Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_uart.c
 void M_CLEAN_BUF(char* buf)
 {
   for (int i = 0; i < BUFSIZE; i++)
@@ -190,7 +205,13 @@ void M_CLEAN_BUF(char* buf)
   }
 }
 
+// Функция обробатывает IDLE флаг.  Для того чтобы эта функци работала , нужно  добавить  изменения в
+// Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_uart.h
+// Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_uart.c
+
+
 void HAL_UART_IDLE_Callback(UART_HandleTypeDef *huart) {
+    //print_string("IDLE CALLBACK");
     if (huart == &huart6) {
         // Функция вызываетс если буфер не доконца заполнен
         __HAL_UART_DISABLE_IT(&huart6, UART_IT_IDLE);
@@ -210,9 +231,11 @@ void HAL_UART_IDLE_Callback(UART_HandleTypeDef *huart) {
         __HAL_UART_CLEAR_IDLEFLAG(&huart6);
         __HAL_UART_ENABLE_IT(&huart6, UART_IT_IDLE);
         HAL_UART_Receive_IT(&huart6, (uint8_t *) buffer, BUFSIZE);
+        seek_string_end(buffer);
 
+        HAL_UART_Transmit_DMA_STATIC(&huart7, buffer);
         print_string(buffer);
-        //M_CLEAN_BUF(buffer);
+        M_CLEAN_BUF(buffer);
     }
 }
 
@@ -346,7 +369,16 @@ int main(void)
 	uint8_t buff[1] = {' '};
 	
 	// HAL_UART_Transmit_DMA(&huart7, cat3, sizeof(cat3));
-	HAL_UART_Transmit_DMA_STATIC(&huart7, message);
+	//HAL_UART_Transmit_DMA_STATIC(&huart7, message);
+
+   // Включаем флаг IDLE
+  __HAL_UART_ENABLE_IT(&huart6, UART_IT_IDLE);
+  // Включаем прерывание
+  // HAL_UART_Receive_IT(&huart6, (uint8_t *) buffer, BUFSIZE);
+
+  // print_string("\n");
+
+  //print_string("INITED");
 	
   /* USER CODE END 2 */
 
@@ -355,8 +387,9 @@ int main(void)
   while (1)
   {
     HAL_UART_Receive_IT(&huart6, (uint8_t *) buffer, BUFSIZE);
-    HAL_UART_Transmit_DMA_STATIC(&huart7, buffer);
-    M_CLEAN_BUF(buffer);
+
+    //HAL_UART_Transmit_DMA_STATIC(&huart7, buffer);
+    //M_CLEAN_BUF(buffer);
 
     /* USER CODE END WHILE */
 

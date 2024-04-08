@@ -66,6 +66,8 @@ Core/Src/system_stm32f7xx.c
 ASM_SOURCES =  \
 startup_stm32f746xx.s
 
+BINARY_FLASH = build/Thermal_Printer.bin
+
 
 #######################################
 # binaries
@@ -187,6 +189,9 @@ $(BUILD_DIR):
 #######################################
 clean:
 	-rm -fR $(BUILD_DIR)
+
+flash: $(BINARY_FLASH)
+	st-flash write $(BINARY_FLASH) 0x08000000
   
 #######################################
 # dependencies
