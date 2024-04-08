@@ -152,11 +152,161 @@ uint8_t sonic[] =
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
-
+void HAL_UART_IDLE_Callback (UART_HandleTypeDef *huart);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+oid uart_send_byte(char sym)
+{
+    // Wait for TXE:
+    while ((*M_USART6_ISR & (1U <<  7U)) == 0U);
+
+    // Put data into DR:
+    *M_USART6_TDR = sym;
+}
+
+void print_string(const char* buf)
+{
+    for (size_t i = 0; buf[i] != '\0'; i++)
+    {
+        uart_send_byte(buf[i]);
+    }
+    uart_send_byte('\n');
+    uart_send_byte('\r');
+}
+
+#define BUFSIZE 100 // здесь указать размер буфера нужного размера
+uint8_t buffer[BUFSIZE] = {0,};
+
+// Функция обробатывает IDLE флаг.  Для того чтобы эта функци работала , нужно  добавить  изменения в
+// Drivers/STM32F1xx_HAL_Driver/Inc/stm32f1xx_hal_uart.h
+// Drivers/STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_uart.c
+void M_CLEAN_BUF(char* buf)
+{
+  for (int i = 0; i < BUFSIZE; i++)
+  {
+      buf[i] = 0;
+  }
+}
+
+void HAL_UART_IDLE_Callback(UART_HandleTypeDef *huart) {
+    if (huart == &huart6) {
+        // Функция вызываетс если буфер не доконца заполнен
+        __HAL_UART_DISABLE_IT(&huart6, UART_IT_IDLE);
+        //HAL_UART_Transmit_IT(&huart6, buffer, BUFSIZE);
+        // uint8_t res = HAL_UART_Transmit_IT(&huart6, (uint8_t *) "ERR_LEN", 7);
+        // if (res == HAL_ERROR) {
+        //     HAL_UART_Transmit(&huart6, (uint8_t *) "ERR_HAL", 7, 1000);
+        // } else if (res == HAL_BUSY) {
+        //     HAL_UART_Transmit(&huart6, (uint8_t *) "ERR_BUSY", 8, 1000);
+        // } else if (res == HAL_OK) {
+
+        // } else {
+        //     HAL_UART_Transmit(&huart6, (uint8_t *) "ERR_ALL", 7, 1000);
+        // }
+        //HAL_UART_Transmit_IT(&huart6, buffer, BUFSIZE);
+        HAL_UART_AbortReceive(&huart6);
+        __HAL_UART_CLEAR_IDLEFLAG(&huart6);
+        __HAL_UART_ENABLE_IT(&huart6, UART_IT_IDLE);
+        HAL_UART_Receive_IT(&huart6, (uint8_t *) buffer, BUFSIZE);
+
+        print_string(buffer);
+        //M_CLEAN_BUF(buffer);
+    }
+}
+
+// /////////////////////////////////// полный буфер ///////////////////////////////////////
+// void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart) {
+//     if (huart == &huart6) {
+//         // Функция вызывается если буфер заполнен, здесь мы обрабатываем  и парсим то что пришло
+//         __HAL_UART_DISABLE_IT(&huart6, UART_IT_IDLE);
+//         if (strcmp((char *) buffer, "1-0") == 0) {
+//             HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_RESET);
+//             HAL_UART_Transmit_IT(&huart6, (uint8_t *) "OK", 2);
+
+//         } else if (strcmp((char *) buffer, "1-1") == 0) {
+//             HAL_GPIO_WritePin(GPIOA, GPIO_PIN_1, GPIO_PIN_SET);
+//             HAL_UART_Transmit_IT(&huart6, (uint8_t *) "OK", 2);
+
+//         } else if (strcmp((char *) buffer, "2-0") == 0) {
+//             HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET);
+//             HAL_UART_Transmit_IT(&huart6, (uint8_t *) "OK", 2);
+
+//         } else if (strcmp((char *) buffer, "2-1") == 0) {
+//             HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET);
+//             HAL_UART_Transmit_IT(&huart6, (uint8_t *) "OK", 2);
+
+//         } else if (strcmp((char *) buffer, "3-0") == 0) {
+//             HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_RESET);
+//             HAL_UART_Transmit_IT(&huart6, (uint8_t *) "OK", 2);
+
+//         } else if (strcmp((char *) buffer, "3-1") == 0) {
+//             HAL_GPIO_WritePin(GPIOA, GPIO_PIN_3, GPIO_PIN_SET);
+//             HAL_UART_Transmit_IT(&huart6, (uint8_t *) "OK", 2);
+
+//         } else if (strcmp((char *) buffer, "4-0") == 0) {
+//             HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
+//             HAL_UART_Transmit_IT(&huart6, (uint8_t *) "OK", 2);
+
+//         } else if (strcmp((char *) buffer, "4-1") == 0) {
+//             HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
+//             HAL_UART_Transmit_IT(&huart6, (uint8_t *) "OK", 2);
+
+//         } else {
+//             HAL_UART_Transmit_IT(&huart6, buffer, BUFSIZE);
+//         }
+
+//         HAL_UART_AbortReceive(&huart6);
+//         __HAL_UART_CLEAR_IDLEFLAG(&huart6);
+//         __HAL_UART_ENABLE_IT(&huart6, UART_IT_IDLE);
+//         //HAL_UART_Receive_IT(&huart6, (uint8_t *) buffer, BUFSIZE);
+//     }
+// }
+
+
+void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart) {
+    // Здесь мы обрабатываем ошибку  отправки UART
+    if (huart == &huart6) {
+        __HAL_UART_DISABLE_IT(&huart6, UART_IT_IDLE);
+        uint32_t er = HAL_UART_GetError(&huart6);
+        HAL_UART_Abort_IT(&huart6);
+
+        switch (er) {
+            case HAL_UART_ERROR_PE:
+                HAL_UART_Transmit(&huart6, (uint8_t *) "ERR_PARITY", 10, 1000);
+                __HAL_UART_CLEAR_PEFLAG(&huart6);
+                huart->ErrorCode = HAL_UART_ERROR_NONE;
+                break;
+
+            case HAL_UART_ERROR_NE:
+                HAL_UART_Transmit(&huart6, (uint8_t *) "ERR_NOISE", 9, 1000);
+                __HAL_UART_CLEAR_NEFLAG(&huart6);
+                huart->ErrorCode = HAL_UART_ERROR_NONE;
+                break;
+
+            case HAL_UART_ERROR_FE:
+                HAL_UART_Transmit(&huart6, (uint8_t *) "ERR_FRAME", 9, 1000);
+                __HAL_UART_CLEAR_FEFLAG(&huart6);
+                huart->ErrorCode = HAL_UART_ERROR_NONE;
+                break;
+
+            case HAL_UART_ERROR_ORE:
+                HAL_UART_Transmit(&huart6, (uint8_t *) "ERR_OVERRUN", 11, 1000);
+                __HAL_UART_CLEAR_OREFLAG(huart);
+                huart->ErrorCode = HAL_UART_ERROR_NONE;
+                break;
+
+            case HAL_UART_ERROR_DMA:
+                HAL_UART_Transmit(&huart6, (uint8_t *) "ERR_DMA", 7, 1000);
+                huart->ErrorCode = HAL_UART_ERROR_NONE;
+                break;
+            default:
+                break;
+        }
+    }
+
+}
 
 /* USER CODE END 0 */
 
@@ -204,6 +354,10 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+    HAL_UART_Receive_IT(&huart6, (uint8_t *) buffer, BUFSIZE);
+    HAL_UART_Transmit_DMA_STATIC(&huart7, buffer);
+    M_CLEAN_BUF(buffer);
+
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
